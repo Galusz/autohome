@@ -29,7 +29,6 @@ data class Item(
     val hours: Double?,
     val minutes: Double?,
     val style: String?,
-    val quick: Boolean?,
     val sep: String?
 )
 
@@ -92,7 +91,7 @@ object ConfigLoader {
             lines, items, (m["grad"] as? List<*>)?.map { it.toString() },
             (m["parts"] as? List<*>)?.map { val pm = it as Map<*, *>; Part(pm["entity"] as? String ?: "", pm["label"] as? String, pm["color"] as? String) },
             (m["hours"] as? Number)?.toDouble(), (m["minutes"] as? Number)?.toDouble(),
-            m["style"] as? String, m["quick"] as? Boolean, m["sep"] as? String
+            m["style"] as? String, m["sep"] as? String
         )
     }
 }

@@ -12,7 +12,6 @@ import android.graphics.Shader
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
@@ -44,10 +43,6 @@ class MusicService : MediaBrowserServiceCompat() {
     private val histReqs = HashMap<String, Pair<String, Long>>()
     private val cameras = HashMap<String, Bitmap>()
     private val camEntities = HashSet<String>()
-    private val quickMedia = HashSet<String>()
-    private val parentOfMedia = HashMap<String, String>()
-    private var lastQuickId = ""
-    private var lastQuickAt = 0L
     private val camTick = object : Runnable {
         override fun run() { fetchCameras(); handler.postDelayed(this, 5000) }
     }
@@ -113,8 +108,6 @@ class MusicService : MediaBrowserServiceCompat() {
         items.forEach { it ->
             val mid = stableId(it)
             itemByMedia[mid] = it
-            parentOfMedia[mid] = parent
-            if ((it.type == "switch" || it.type == "button") && it.quick == true) quickMedia.add(mid)
             if (it.entity != null) { usedEntities.add(it.entity); entToParents.getOrPut(it.entity) { HashSet() }.add(parent) }
             it.lines?.forEach { l -> usedEntities.add(l.entity); entToParents.getOrPut(l.entity) { HashSet() }.add(parent) }
             it.parts?.forEach { pp -> usedEntities.add(pp.entity); entToParents.getOrPut(pp.entity) { HashSet() }.add(parent) }
@@ -190,7 +183,7 @@ class MusicService : MediaBrowserServiceCompat() {
         }
     }
 
-    private fun normSeries(values: List<Double>, n: Int = 10): IntArray {
+    private fun normSeries(values: List<Double>, n: Int = 80): IntArray {
         if (values.isEmpty()) return IntArray(0)
         val pts = DoubleArray(n)
         val per = values.size.toDouble() / n
@@ -235,6 +228,8 @@ class MusicService : MediaBrowserServiceCompat() {
                 "HEAT" -> setMode("heat")
                 "COOL" -> setMode("cool")
                 "OFFC" -> setMode("off")
+                "UP" -> brightStep(10)
+                "DOWN" -> brightStep(-10)
             }
         }
     }
@@ -272,6 +267,9 @@ class MusicService : MediaBrowserServiceCompat() {
         when (it.type) {
             "switch" -> mb.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, (if (isOn(it.entity)) "WLACZONE" else "WYLACZONE") + ctr)
                 .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, switchArt(480, isOn(it.entity)))
+            "light" -> { val on = isOn(it.entity); val pc = lightPct(it)
+                mb.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, (if (on) "$pc%  JASNOSC" else "WYLACZONE") + ctr)
+                    .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, lightArt(480, on, pc)) }
             "button" -> mb.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, (if (it.entity?.startsWith("cover.") == true) valStr(it.entity) else "") + ctr)
                 .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, buttonArt(480, false, pushFlash))
             "number" -> {
@@ -303,6 +301,11 @@ class MusicService : MediaBrowserServiceCompat() {
         var actions = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_STOP or PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
         when (it?.type) {
             "switch" -> b.addCustomAction("TOGGLE", if (isOn(it.entity)) "Wylacz" else "Wlacz", if (isOn(it.entity)) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off)
+            "light" -> {
+                b.addCustomAction("TOGGLE", if (isOn(it.entity)) "Wylacz" else "Wlacz", if (isOn(it.entity)) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off)
+                b.addCustomAction("DOWN", "Ciemniej", R.drawable.ic_minus)
+                b.addCustomAction("UP", "Jasniej", R.drawable.ic_plus)
+            }
             "button" -> b.addCustomAction("PUSH", "Nacisnij", R.drawable.ic_push)
             "number" -> if (numEditing) { actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SKIP_TO_NEXT; b.addCustomAction("OK", "Zapisz", R.drawable.ic_check) } else {
                 b.addCustomAction("SET", "Ustaw", R.drawable.ic_edit)
@@ -329,6 +332,23 @@ class MusicService : MediaBrowserServiceCompat() {
         else ha?.callService(e.substringBefore("."), "set_value", e, JSONObject().put("value", numVal))
     }
 
+    private fun lightPct(it: Item): Int {
+        val b = states[it.entity]?.second?.optInt("brightness", -1) ?: -1
+        return if (b >= 0) ((b * 100 + 127) / 255) else if (isOn(it.entity)) 100 else 0
+    }
+    private fun setBright(pct: Int) {
+        val it = curItem ?: return; val e = it.entity ?: return
+        val v = pct.coerceIn(0, 100)
+        if (v <= 0) { ha?.callService("light", "turn_off", e); states[e] = Pair("off", states[e]?.second ?: JSONObject()) }
+        else {
+            ha?.callService("light", "turn_on", e, JSONObject().put("brightness_pct", v))
+            val attrs = states[e]?.second ?: JSONObject(); attrs.put("brightness", v * 255 / 100)
+            states[e] = Pair("on", attrs)
+        }
+        showEntity()
+    }
+    private fun brightStep(delta: Int) { val it = curItem ?: return; setBright(lightPct(it) + delta) }
+
     // ---------- queue ----------
     private fun setQueue() {
         val q = scope.mapIndexed { i, mid ->
@@ -341,33 +361,15 @@ class MusicService : MediaBrowserServiceCompat() {
 
     // ---------- browse ----------
     override fun onGetRoot(clientPackageName: String, clientUid: Int, rootHints: Bundle?): BrowserRoot {
-        val forYou = rootHints?.getBoolean(BrowserRoot.EXTRA_SUGGESTED, false) == true ||
-                rootHints?.getBoolean(BrowserRoot.EXTRA_RECENT, false) == true
-        if (conf.home.isNotEmpty() && forYou) {
-            val rex = Bundle().apply {
-                putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, LIST)
-                putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, LIST)
-            }
-            return BrowserRoot("__recent__", rex)
-        }
         val ex = Bundle().apply {
             putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, LIST)
             putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, LIST)
         }
+        if (clientPackageName == "com.google.android.googlequicksearchbox") return BrowserRoot("__empty__", ex)
         return BrowserRoot("root", ex)
     }
 
     override fun onLoadChildren(parentId: String, result: Result<MutableList<MediaBrowserCompat.MediaItem>>) {
-        val itm = itemByMedia[parentId]
-        if (itm != null && quickMedia.contains(parentId)) {
-            val now = SystemClock.elapsedRealtime()
-            if (!(parentId == lastQuickId && now - lastQuickAt < 800)) {
-                if (itm.type == "switch") toggleEntity(itm) else pushEntity(itm)
-            }
-            lastQuickId = parentId; lastQuickAt = now
-            result.sendResult(buildNodes(parentOfMedia[parentId] ?: "root"))
-            return
-        }
         result.sendResult(buildNodes(parentId))
     }
 
@@ -383,19 +385,6 @@ class MusicService : MediaBrowserServiceCompat() {
             if (items != null) items.forEach { out.add(node(stableId(it), it)) }
         }
         return out
-    }
-
-    private fun toggleEntity(it: Item) {
-        val e = it.entity ?: return
-        val on = isOn(e)
-        ha?.callService(e.substringBefore("."), if (on) "turn_off" else "turn_on", e)
-        states[e] = Pair(if (on) "off" else "on", states[e]?.second ?: JSONObject())
-    }
-
-    private fun pushEntity(it: Item) {
-        val e = it.entity ?: return
-        val svc = it.service ?: when (e.substringBefore(".")) { "button" -> "button.press"; "scene", "script" -> e.substringBefore(".") + ".turn_on"; "cover" -> "cover.toggle"; else -> "homeassistant.toggle" }
-        ha?.callService(svc.substringBefore("."), svc.substringAfter("."), e)
     }
 
     private fun tabNode(tab: Tab): MediaBrowserCompat.MediaItem {
@@ -414,19 +403,20 @@ class MusicService : MediaBrowserServiceCompat() {
         if (it.type == "gauge" || it.type == "battery" || it.type == "progress") ex.putDouble(MediaConstants.DESCRIPTION_EXTRAS_KEY_COMPLETION_PERCENTAGE, pctOf(it) / 100.0)
         if (it.items != null) { val st = if (it.style == "grid") GRID else LIST; ex.putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, st); ex.putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, st) }
         val title = when {
-            it.type == "card" -> " "
+            it.type == "card" -> it.title ?: ""
             it.type == "text" -> { val sp = it.sep ?: "    "; (it.title ?: "") + sp + (it.lines ?: listOf()).joinToString(sp) { l -> l.label.replace("\n", " ").trim() + " " + valStr(l.entity) } }
             else -> it.title ?: it.entity ?: ""
         }
         val sub = if (it.type == "card" || it.type == "camera" || it.type == "text") "" else browseSub(it)
         val d = MediaDescriptionCompat.Builder().setMediaId(mid).setTitle(title)
             .setSubtitle(sub).setIconBitmap(icon(it, 150)).setExtras(ex).build()
-        val flag = if (it.items != null || quickMedia.contains(mid)) MediaBrowserCompat.MediaItem.FLAG_BROWSABLE else MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
+        val flag = if (it.items != null) MediaBrowserCompat.MediaItem.FLAG_BROWSABLE else MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
         return MediaBrowserCompat.MediaItem(d, flag)
     }
 
     private fun browseSub(it: Item): String = when (it.type) {
         "switch" -> if (isOn(it.entity)) "ON" else "OFF"
+        "light" -> if (isOn(it.entity)) "${lightPct(it)}% ON" else "OFF"
         "button" -> if (it.entity?.startsWith("cover.") == true) valStr(it.entity) else ""
         "room" -> (it.items?.size ?: 0).toString() + " urzadzen"
         "number" -> if (isClimate(it)) modeLabel(valStr(it.entity)) + " " + fmt(numCurrent(it)) + unit(it) else fmt(numCurrent(it)) + " " + unit(it)
@@ -450,6 +440,7 @@ class MusicService : MediaBrowserServiceCompat() {
             ic != null && ic.isNotBlank() -> glyph(size, ic)
             else -> when (it.type) {
                 "switch" -> switchArt(size, isOn(it.entity))
+                "light" -> lightArt(size, isOn(it.entity), lightPct(it))
                 "button" -> buttonArt(size, false, false)
                 "battery" -> batteryIcon(size, pctOf(it), false)
                 "progress" -> vbar(size, pctOf(it), grad(it))
@@ -557,13 +548,20 @@ class MusicService : MediaBrowserServiceCompat() {
         return bmp
     }
 
-    private fun bars(size: Int, h: IntArray): Bitmap {
+    private fun bars(size: Int, raw: IntArray): Bitmap {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG); p.color = Color.rgb(86, 140, 255)
+        val maxBars = 12
+        val ds = if (raw.size > maxBars) IntArray(maxBars) { i ->
+            val a = i * raw.size / maxBars; val b = ((i + 1) * raw.size / maxBars).coerceAtMost(raw.size)
+            if (b > a) (a until b).sumOf { raw[it] } / (b - a) else raw[a.coerceIn(0, raw.size - 1)]
+        } else raw
+        val mn = ds.minOrNull() ?: 0; val mx = ds.maxOrNull() ?: 100
+        val h = IntArray(ds.size) { i -> if (mx > mn) (8 + (ds[i] - mn).toFloat() / (mx - mn) * 92).toInt() else 50 }
         val n = h.size; val gap = size * 0.03f; val bw = (size - gap * (n + 1)) / n
         for (i in 0 until n) {
-            val bh = size * 0.7f * h[i] / 100f; val x = gap + i * (bw + gap)
-            c.drawRoundRect(RectF(x, size - size * 0.15f - bh, x + bw, size - size * 0.15f), 6f, 6f, p)
+            val bh = size * 0.84f * h[i] / 100f; val x = gap + i * (bw + gap)
+            c.drawRoundRect(RectF(x, size * 0.93f - bh, x + bw, size * 0.93f), 6f, 6f, p)
         }
         return bmp
     }
@@ -571,13 +569,19 @@ class MusicService : MediaBrowserServiceCompat() {
     private fun line(size: Int, v: IntArray): Bitmap {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.style = Paint.Style.STROKE; p.strokeWidth = size * 0.035f; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
+        p.style = Paint.Style.STROKE; p.strokeWidth = size * 0.022f; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
         p.color = Color.rgb(54, 201, 141)
-        val path = Path(); val top = size * 0.18f; val bot = size * 0.82f; val left = size * 0.1f; val right = size * 0.9f
-        for (i in v.indices) {
-            val x = left + (right - left) * i / (v.size - 1); val y = bot - (bot - top) * v[i] / 100f
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        val top = size * 0.08f; val bot = size * 0.92f; val left = size * 0.0f; val right = size * 1.0f
+        val n = v.size
+        if (n == 0) return bmp
+        val xs = FloatArray(n) { i -> left + (right - left) * i / (n - 1).coerceAtLeast(1) }
+        val ys = FloatArray(n) { i -> bot - (bot - top) * v[i] / 100f }
+        val path = Path(); path.moveTo(xs[0], ys[0])
+        for (i in 1 until n) {
+            val mx = (xs[i - 1] + xs[i]) / 2f; val my = (ys[i - 1] + ys[i]) / 2f
+            path.quadTo(xs[i - 1], ys[i - 1], mx, my)
         }
+        path.lineTo(xs[n - 1], ys[n - 1])
         c.drawPath(path, p); return bmp
     }
 
@@ -591,45 +595,42 @@ class MusicService : MediaBrowserServiceCompat() {
 
     private fun fmtNum(v: Double) = if (v == Math.floor(v)) v.toInt().toString() else String.format(Locale.US, "%.1f", v)
 
-    private fun cardHeader(c: Canvas, p: Paint, s: Int, title: String, value: String) {
-        p.style = Paint.Style.FILL
-        p.color = Color.rgb(165, 172, 185); p.textAlign = Paint.Align.LEFT; p.textSize = s * 0.08f
-        c.drawText(title, s * 0.07f, s * 0.135f, p)
-        p.color = Color.WHITE; p.textAlign = Paint.Align.RIGHT; p.textSize = s * 0.095f
-        c.drawText(value, s * 0.93f, s * 0.135f, p)
-    }
-
     private fun ringCard(item: Item): Bitmap {
         val s = 400; val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color = Color.rgb(165, 172, 185); p.textAlign = Paint.Align.LEFT; p.textSize = s * 0.08f
-        c.drawText(item.title ?: "", s * 0.07f, s * 0.135f, p)
         val pc = pctOf(item)
-        val cx = s / 2f; val cy = s * 0.58f; val rOut = s * 0.31f
+        val cx = s / 2f; val cy = s * 0.50f; val rOut = s * 0.37f
         val rr = RectF(cx - rOut, cy - rOut, cx + rOut, cy + rOut)
-        p.style = Paint.Style.STROKE; p.strokeWidth = s * 0.14f; p.strokeCap = Paint.Cap.ROUND
+        p.style = Paint.Style.STROKE; p.strokeWidth = s * 0.15f; p.strokeCap = Paint.Cap.ROUND
         p.color = Color.rgb(45, 48, 56); c.drawArc(rr, 135f, 270f, false, p)
         p.color = if (pc < 25) Color.rgb(214, 90, 90) else Color.rgb(54, 201, 141); c.drawArc(rr, 135f, 270f * pc / 100f, false, p)
-        p.style = Paint.Style.FILL; p.color = Color.WHITE; p.textAlign = Paint.Align.CENTER; p.textSize = s * 0.095f
-        c.drawText(valStr(item.entity) + unit(item), cx, cy + s * 0.035f, p)
-        p.color = Color.rgb(120, 126, 138); p.textSize = s * 0.056f
-        p.textAlign = Paint.Align.LEFT; c.drawText(fmtNum(item.min), s * 0.1f, s * 0.965f, p)
-        p.textAlign = Paint.Align.RIGHT; c.drawText(fmtNum(item.max), s * 0.9f, s * 0.965f, p)
+        p.textAlign = Paint.Align.CENTER; p.textSize = s * 0.11f
+        outlinedText(c, p, valStr(item.entity) + unit(item), cx, cy + s * 0.04f, Color.WHITE)
+        p.textSize = s * 0.06f
+        p.textAlign = Paint.Align.LEFT; outlinedText(c, p, fmtNum(item.min), s * 0.1f, s * 0.97f, Color.rgb(185, 191, 203))
+        p.textAlign = Paint.Align.RIGHT; outlinedText(c, p, fmtNum(item.max), s * 0.9f, s * 0.97f, Color.rgb(185, 191, 203))
         return bmp
     }
 
     private fun chartCard(item: Item, chart: Bitmap): Bitmap {
         val s = 400; val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        cardHeader(c, p, s, item.title ?: "", valStr(item.entity) + unit(item))
-        val cs = s * 0.86f; val dst = RectF((s - cs) / 2f, s * 0.22f, (s + cs) / 2f, s * 0.22f + cs * 0.84f)
-        c.drawBitmap(chart, null, dst, null)
+        c.drawBitmap(chart, null, RectF(0f, 0f, s.toFloat(), s.toFloat()), null)
+        p.textAlign = Paint.Align.LEFT; p.textSize = s * 0.11f
+        outlinedText(c, p, valStr(item.entity) + unit(item), s * 0.05f, s * 0.15f, Color.WHITE)
         histRange[histKey(item)]?.let { rg ->
-            p.color = Color.rgb(120, 126, 138); p.textSize = s * 0.056f; p.textAlign = Paint.Align.RIGHT
-            c.drawText(fmtNum(rg.second), s * 0.95f, s * 0.3f, p)
-            c.drawText(fmtNum(rg.first), s * 0.95f, s * 0.95f, p)
+            p.textSize = s * 0.06f; p.textAlign = Paint.Align.RIGHT
+            outlinedText(c, p, fmtNum(rg.second), s * 0.95f, s * 0.15f, Color.rgb(185, 191, 203))
+            outlinedText(c, p, fmtNum(rg.first), s * 0.95f, s * 0.95f, Color.rgb(185, 191, 203))
         }
         return bmp
+    }
+
+    private fun outlinedText(c: Canvas, p: Paint, text: String, x: Float, y: Float, fill: Int) {
+        p.style = Paint.Style.STROKE; p.strokeWidth = p.textSize * 0.16f; p.color = Color.argb(210, 12, 13, 16)
+        c.drawText(text, x, y, p)
+        p.style = Paint.Style.FILL; p.color = fill
+        c.drawText(text, x, y, p)
     }
 
     private fun partVals(item: Item): List<Triple<String?, Double, Int>> =
@@ -638,32 +639,28 @@ class MusicService : MediaBrowserServiceCompat() {
     private fun pieCard(item: Item): Bitmap {
         val s = 400; val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color = Color.rgb(165, 172, 185); p.textAlign = Paint.Align.LEFT; p.textSize = s * 0.085f
-        c.drawText(item.title ?: "", s * 0.1f, s * 0.15f, p)
         val parts = partVals(item)
         val sum = parts.sumOf { it.second }.takeIf { it > 0 } ?: 1.0
-        val cx = s / 2f; val cy = s * 0.58f; val rOut = s * 0.3f
+        val cx = s / 2f; val cy = s * 0.50f; val rOut = s * 0.36f
         val rr = RectF(cx - rOut, cy - rOut, cx + rOut, cy + rOut)
-        p.style = Paint.Style.STROKE; p.strokeWidth = s * 0.14f
+        p.style = Paint.Style.STROKE; p.strokeWidth = s * 0.15f
         var start = -90f
         for (t in parts) {
             val sweep = (360.0 * t.second / sum).toFloat()
             p.color = t.third; c.drawArc(rr, start, sweep - 2f, false, p); start += sweep
         }
-        p.style = Paint.Style.FILL; p.color = Color.WHITE; p.textAlign = Paint.Align.CENTER; p.textSize = s * 0.095f
-        c.drawText(fmtNum(sum) + unit(item), cx, cy + s * 0.035f, p)
+        p.style = Paint.Style.FILL; p.color = Color.WHITE; p.textAlign = Paint.Align.CENTER; p.textSize = s * 0.11f
+        c.drawText(fmtNum(sum) + unit(item), cx, cy + s * 0.04f, p)
         return bmp
     }
 
     private fun ribbonCard(item: Item): Bitmap {
         val s = 400; val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color = Color.rgb(165, 172, 185); p.textAlign = Paint.Align.LEFT; p.textSize = s * 0.085f
-        c.drawText(item.title ?: "", s * 0.1f, s * 0.14f, p)
         val parts = partVals(item)
         val sum = parts.sumOf { it.second }.takeIf { it > 0 } ?: 1.0
         val n = parts.size.coerceAtLeast(1)
-        val top = s * 0.24f; val rowH = (s * 0.66f) / n
+        val top = s * 0.08f; val rowH = (s * 0.84f) / n
         val barLeft = s * 0.1f; val barMax = s * 0.6f
         for (i in parts.indices) {
             val t = parts[i]; val y = top + rowH * i + rowH * 0.5f; val frac = (t.second / sum).toFloat()
@@ -762,6 +759,26 @@ class MusicService : MediaBrowserServiceCompat() {
         c.drawText(fmt(v), size / 2f, size / 2f + size * 0.02f, p)
         p.color = Color.rgb(150, 156, 168); p.textSize = size * 0.085f; c.drawText(u, size / 2f, size * 0.64f, p)
         if (numEditing) { p.textSize = size * 0.075f; p.color = Color.rgb(86, 140, 255); c.drawText("EDYCJA", size / 2f, size * 0.86f, p) }
+        return bmp
+    }
+
+    private fun lightArt(size: Int, on: Boolean, pct: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp); c.drawColor(Color.rgb(18, 18, 22)); val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val pad = size * 0.14f; val rr = RectF(pad, pad, size - pad, size - pad)
+        p.style = Paint.Style.STROKE; p.strokeWidth = size * 0.10f; p.strokeCap = Paint.Cap.ROUND
+        p.color = Color.rgb(45, 48, 56); c.drawArc(rr, 135f, 270f, false, p)
+        if (on) {
+            val t = pct / 100f
+            p.color = Color.rgb((120 + 135 * t).toInt(), (95 + 115 * t).toInt(), (40 + 50 * t).toInt())
+            c.drawArc(rr, 135f, 270f * pct / 100f, false, p)
+        }
+        p.style = Paint.Style.FILL; p.textAlign = Paint.Align.CENTER
+        p.color = if (on) Color.WHITE else Color.rgb(110, 114, 124)
+        p.textSize = size * 0.22f
+        c.drawText(if (on) "$pct%" else "OFF", size / 2f, size / 2f + size * 0.04f, p)
+        p.textSize = size * 0.1f
+        c.drawText("💡", size / 2f, size * 0.72f, p)
         return bmp
     }
 

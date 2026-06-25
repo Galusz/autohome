@@ -39,8 +39,6 @@ tabs:           # top tabs (MAX 4). style: list | grid
     title: ...
     style: list
     items: [ ... ]
-home:           # optional: the "For You" screen (AA recents) - quick shortcuts
-  - { ... }
 ```
 
 ---
@@ -50,7 +48,8 @@ home:           # optional: the "For You" screen (AA recents) - quick shortcuts
 | type | description | key fields |
 |---|---|---|
 | `room` | nested list (drill-in) | `items:`, `style: list\|grid`, `icon`, `color` |
-| `switch` | on/off (toggle) | `entity` (light/switch/fan/input_boolean) |
+| `switch` | on/off (toggle) | `entity` (switch/input_boolean) |
+| `light` | on/off + brightness ◀▶ | `entity` (light.*); % ring, color brightens with level |
 | `button` | impulse / push | `entity`, `service:` (e.g. `cover.toggle`, `scene.turn_on`) |
 | `number` | setpoint SET + ◀▶ | `entity` (number/input_number/**climate**), `min`,`max`,`step`,`unit` |
 | `gauge` | percentage dial (ring) | `entity`, `min`,`max`,`unit` |
@@ -111,21 +110,17 @@ tabs:
       - { type: card, chart: pie, title: Energy, unit: " W", parts: [
           { entity: sensor.solar_w, color: "#E0B43C" },
           { entity: sensor.grid_w,  color: "#36C98D" } ] }
-
-home:
-  - { type: switch, entity: light.living, title: Light }
-  - { type: button, entity: cover.gate, title: Gate, service: cover.toggle, icon: "🚪" }
 ```
 
 ---
 
 ## Common item fields
-`group:` (section header) · `icon:` · `quick: true` (switch/button → tap toggles instantly, list refreshes, no player) · `sep:` (separator between `text` values in the list).
+`group:` (section header) · `icon:` · `sep:` (separator between `text` values in the list).
 
 ## Limitations (media path)
 - **Max 4 top tabs** — for more, use `room` (drill-in).
 - **Inline toggle** via `quick: true`; otherwise tapping an item opens the player.
-- **"For You" (Android Auto home panel)** is NOT populated on the legacy `MediaBrowserService` — that needs the Media3 rewrite (planned). `home:` is a placeholder for it.
+- **"For You" (Android Auto home panel)** is owned by the currently *playing* media app; this app doesn't play audio, so that card shows other apps. Tapping an entity still opens the player from the app's own browse list.
 - **Camera = snapshot every ~5 s** (not video); player art is **square** (fit shows the whole frame with letterbox bars).
 - **Bars/Line** come from the HA `recorder`; scale is **relative** (series min–max).
 - `bars`/`line` as a standalone `type` don't render (only inside `card chart:`).
