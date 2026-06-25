@@ -724,7 +724,7 @@ class MusicService : MediaBrowserServiceCompat() {
 
     private fun climateArt(v: Double, vmin: Double, vmax: Double, mode: String): Bitmap {
         val size = 480; val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp); c.drawColor(Color.rgb(18, 18, 22)); val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val pct = (((v - vmin) / (vmax - vmin)) * 100.0).toFloat()
         val pad = size * 0.14f; val rr = RectF(pad, pad, size - pad, size - pad)
         p.style = Paint.Style.STROKE; p.strokeWidth = size * 0.10f; p.strokeCap = Paint.Cap.ROUND
@@ -748,7 +748,7 @@ class MusicService : MediaBrowserServiceCompat() {
 
     private fun numberArt(v: Double, vmin: Double, vmax: Double, u: String): Bitmap {
         val size = 480; val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp); c.drawColor(Color.rgb(18, 18, 22)); val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val pct = (((v - vmin) / (vmax - vmin)) * 100.0).toFloat()
         val pad = size * 0.14f; val rr = RectF(pad, pad, size - pad, size - pad)
         p.style = Paint.Style.STROKE; p.strokeWidth = size * 0.10f; p.strokeCap = Paint.Cap.ROUND
@@ -764,7 +764,7 @@ class MusicService : MediaBrowserServiceCompat() {
 
     private fun lightArt(size: Int, on: Boolean, pct: Int): Bitmap {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp); c.drawColor(Color.rgb(18, 18, 22)); val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val c = Canvas(bmp); val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val pad = size * 0.14f; val rr = RectF(pad, pad, size - pad, size - pad)
         p.style = Paint.Style.STROKE; p.strokeWidth = size * 0.10f; p.strokeCap = Paint.Cap.ROUND
         p.color = Color.rgb(45, 48, 56); c.drawArc(rr, 135f, 270f, false, p)
