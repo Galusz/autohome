@@ -2,7 +2,17 @@
 
 **Home Assistant in your car** via **Android Auto** (media app). The app connects to your HA over WebSocket, shows entities live, lets you control them (toggle / impulse / setpoint / climate), draws charts from history, and previews cameras — all described by a single **YAML** file.
 
-> Runs as a **media** app (like Spotify) — it shows up in the car's audio section. No Google publishing required (sideload). Needs "Unknown sources" enabled in Android Auto developer settings.
+> Runs as a **media** app (like Spotify) — it shows up in the car's audio section. No Google publishing required (sideload).
+
+---
+
+## Install (sideload)
+1. Install the APK (from **Releases**) on your phone.
+2. Open the **Android Auto** app → **Settings** → scroll to **Version** and tap it **10×** to unlock **Developer settings**.
+3. In **Developer settings** enable **"Unknown sources"** (a.k.a. *Add unknown sources to launcher*).
+4. (Re)connect to your car / DHU — **AutoHome** appears in the media apps. If it doesn't show, force‑stop Android Auto and reconnect.
+
+> Without "Unknown sources" a sideloaded media app will **not** appear in Android Auto.
 
 ---
 
