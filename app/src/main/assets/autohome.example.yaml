@@ -1,0 +1,87 @@
+# ===========================================================================
+#  AutoHome - Android Auto panel config (example)
+#  Copy to autohome.yaml and fill in url + token. Values are read live from HA.
+#  Full reference: ../../../README.md
+# ===========================================================================
+
+homeassistant:
+  url: http://homeassistant.local:8123   # or http://192.168.x.x:8123 / https://...nabu.casa
+  token: ""                              # HA -> profile -> Long-Lived Access Tokens
+
+# TABS = top tabs (max 4). style: list | grid
+# types: room | switch | button | number | gauge | progress | text | card | camera
+# card.chart: ring | bars | line | pie | ribbon
+# icon: built-in (toggle/battery/gauge/list) | emoji "💡" | letter+color
+
+tabs:
+  - id: rooms
+    title: Rooms
+    style: list
+    items:
+      - type: room
+        title: Living room
+        icon: "L"
+        color: "#568CFF"
+        items:
+          - { type: switch, entity: light.living, title: Light, icon: "💡" }
+          - { type: gauge,  entity: sensor.living_temperature, title: Temperature, unit: "°C", min: 0, max: 40 }
+      - type: room
+        title: Garage
+        icon: "G"
+        color: "#F0963C"
+        items:
+          - { type: button, entity: cover.gate, title: Gate, service: cover.toggle, icon: "🚪" }
+      - type: room
+        title: Cameras
+        icon: "📹"
+        style: grid
+        items:
+          - { type: camera, entity: camera.front, title: Front }
+          - { type: camera, entity: camera.yard,  title: Yard }
+
+  - id: control
+    title: Control
+    style: list
+    items:
+      - { type: number, entity: climate.office, title: Thermostat, group: CLIMATE, min: 15, max: 28, step: 0.5, unit: "°C", icon: "🌡️" }
+      - { type: switch, entity: light.living, title: Living light, group: LIGHTS, icon: toggle }
+      - { type: button, entity: cover.gate, title: Gate, group: GATES, service: cover.toggle }
+
+  - id: sensors
+    title: Sensors
+    style: list
+    items:
+      - type: progress
+        entity: sensor.battery_soc
+        title: Storage
+        group: ENERGY
+        unit: "%"
+        grad: ["#D65A5A", "#E0B43C", "#36C98D"]
+      - { type: gauge, entity: sensor.humidity, title: Humidity, group: SENSORS, unit: "%" }
+      - type: text
+        title: Inverter
+        group: DATA
+        lines:
+          - { label: "PV1: ", entity: sensor.pv1_voltage }
+          - { label: "\nPV2: ", entity: sensor.pv2_voltage }
+          - { label: "\nPower: ", entity: sensor.power }
+
+  - id: dashboard
+    title: Dashboard
+    style: grid
+    items:
+      - { type: card, chart: ring, entity: sensor.battery_soc, title: Storage, unit: "%" }
+      - { type: card, chart: bars, entity: sensor.power, title: Power, unit: " W", hours: 6 }
+      - { type: card, chart: line, entity: sensor.power, title: Power 24h, unit: " W", hours: 24 }
+      - { type: card, chart: pie, title: Energy, unit: " W", parts: [
+          { entity: sensor.solar_power, color: "#E0B43C" },
+          { entity: sensor.grid_power,  color: "#36C98D" } ] }
+      - { type: card, chart: ribbon, title: Split, parts: [
+          { entity: sensor.pv1_power, label: PV1, color: "#E0B43C" },
+          { entity: sensor.pv2_power, label: PV2, color: "#36C98D" } ] }
+
+# home = "For You" screen (Android Auto recents) - quick shortcuts
+home:
+  - { type: switch, entity: light.living, title: Living light, icon: toggle }
+  - { type: button, entity: cover.gate, title: Gate, service: cover.toggle, icon: "🚪" }
+  - { type: progress, entity: sensor.battery_soc, title: Storage, unit: "%" }
