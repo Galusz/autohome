@@ -13,6 +13,7 @@ data class Item(
     val title: String?,
     val group: String?,
     val icon: String?,
+    val iconOn: String?,
     val color: String?,
     val unit: String?,
     val min: Double,
@@ -39,7 +40,12 @@ object ConfigLoader {
     fun load(ctx: Context): Conf {
         val ext = java.io.File(ctx.getExternalFilesDir(null), "autohome.yaml")
         val text = if (ext.exists()) ext.readText() else ctx.assets.open("autohome.yaml").bufferedReader().use { it.readText() }
-        return loadString(text)
+        val c = loadString(text)
+        // connection lives in SharedPreferences; YAML homeassistant: is legacy fallback + one-time migration source
+        if (Settings.url(ctx).isBlank() && c.url.isNotBlank()) Settings.setConnection(ctx, c.url, c.token)
+        val url = Settings.url(ctx).ifBlank { c.url }
+        val token = Settings.token(ctx).ifBlank { c.token }
+        return c.copy(url = url, token = token)
     }
 
     fun loadString(text: String): Conf {
@@ -83,7 +89,7 @@ object ConfigLoader {
         return Item(
             m["type"] as? String ?: "gauge",
             m["entity"] as? String, m["title"] as? String, m["group"] as? String,
-            m["icon"]?.toString(), m["color"] as? String, m["unit"] as? String,
+            m["icon"]?.toString(), m["icon_on"]?.toString(), m["color"] as? String, m["unit"] as? String,
             (m["min"] as? Number)?.toDouble() ?: 0.0,
             (m["max"] as? Number)?.toDouble() ?: 100.0,
             (m["step"] as? Number)?.toDouble() ?: 1.0,

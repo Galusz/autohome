@@ -1,17 +1,14 @@
 # ===========================================================================
-#  AutoHome - Android Auto panel config (example)
-#  Copy to autohome.yaml and fill in url + token. Values are read live from HA.
+#  AutoHome - layout config (example)
+#  Connection (HA url + token) is set in the APP's config screen, NOT here.
+#  This file only describes the layout (tabs / widgets). Values are read live.
 #  Full reference: ../../../README.md
 # ===========================================================================
 
-homeassistant:
-  url: http://homeassistant.local:8123   # or http://192.168.x.x:8123 / https://...nabu.casa
-  token: ""                              # HA -> profile -> Long-Lived Access Tokens
-
-# TABS = top tabs (max 4). style: list | grid
-# types: room | switch | light | button | number | gauge | progress | text | card | camera
-# card.chart: ring | bars | line | pie | ribbon
-# icon: built-in (toggle/battery/gauge/list) | emoji "💡" | letter+color
+# tabs: top tabs (max 4). style: list | grid
+# types: room | toggle | button | light | number | gauge | progress | text | card | camera
+# icon:    toggle|battery|gauge|list  |  emoji "💡"  |  letter+color (rooms)  |  mdi:NAME
+# icon_on: second icon for the ON state (toggle); list tints green(on)/grey(off)
 
 tabs:
   - id: rooms
@@ -23,14 +20,9 @@ tabs:
         icon: "L"
         color: "#568CFF"
         items:
-          - { type: switch, entity: light.living, title: Light, icon: "💡" }
+          - { type: light,  entity: light.living, title: Light }
+          - { type: toggle, entity: switch.tv, title: TV, icon: "mdi:television" }
           - { type: gauge,  entity: sensor.living_temperature, title: Temperature, unit: "°C", min: 0, max: 40 }
-      - type: room
-        title: Garage
-        icon: "G"
-        color: "#F0963C"
-        items:
-          - { type: button, entity: cover.gate, title: Gate, service: cover.toggle, icon: "🚪" }
       - type: room
         title: Cameras
         icon: "📹"
@@ -43,10 +35,30 @@ tabs:
     title: Control
     style: list
     items:
-      - { type: number, entity: climate.office, title: Thermostat, group: CLIMATE, min: 15, max: 28, step: 0.5, unit: "°C", icon: "🌡️" }
-      - { type: light, entity: light.living, title: Living light, group: LIGHTS }
-      - { type: switch, entity: switch.tv_socket, title: TV socket, group: LIGHTS, icon: toggle }
-      - { type: button, entity: cover.gate, title: Gate, group: GATES, service: cover.toggle }
+      # single toggle / button (entity, no items)
+      - { type: toggle, entity: switch.socket, title: Socket, group: QUICK, icon: "mdi:power-plug-off", icon_on: "mdi:power-plug" }
+      - { type: button, entity: scene.movie,  title: Movie, group: QUICK, icon: "mdi:movie-open" }
+      # light with brightness (+/-)
+      - { type: light, entity: light.kitchen, title: Kitchen, group: LIGHTS }
+      # number / climate (SET + arrows; climate adds heat/cool/off)
+      - { type: number, entity: climate.office, title: Thermostat, group: CLIMATE, min: 15, max: 28, step: 0.5, unit: "°C", icon: "mdi:thermostat" }
+      # multi toggle panel (1-4 items, adaptive icon layout: 1 big / 2 stacked / 3-4 corners)
+      - type: toggle
+        title: Lights
+        group: PANELS
+        sep: " · "
+        items:
+          - { entity: light.living,  title: Living,  icon: "mdi:lightbulb-outline", icon_on: "mdi:lightbulb-on" }
+          - { entity: light.kitchen, title: Kitchen, icon: "mdi:ceiling-light" }
+          - { entity: switch.socket, title: Socket,  icon: "mdi:power-plug-off", icon_on: "mdi:power-plug" }
+      # multi button panel (impulse actions, momentary flash)
+      - type: button
+        title: Gate
+        group: PANELS
+        items:
+          - { entity: cover.gate, title: Open,  service: cover.open_cover,  icon: "mdi:garage-open" }
+          - { entity: cover.gate, title: Stop,  service: cover.stop_cover,  icon: "mdi:stop" }
+          - { entity: cover.gate, title: Close, service: cover.close_cover, icon: "mdi:garage" }
 
   - id: sensors
     title: Sensors
@@ -62,10 +74,11 @@ tabs:
       - type: text
         title: Inverter
         group: DATA
+        sep: " · "
         lines:
-          - { label: "PV1: ", entity: sensor.pv1_voltage }
-          - { label: "\nPV2: ", entity: sensor.pv2_voltage }
-          - { label: "\nPower: ", entity: sensor.power }
+          - { label: "PV1", entity: sensor.pv1_voltage }
+          - { label: "PV2", entity: sensor.pv2_voltage }
+          - { label: "Power", entity: sensor.power }
 
   - id: dashboard
     title: Dashboard
@@ -81,3 +94,9 @@ tabs:
           { entity: sensor.pv1_power, label: PV1, color: "#E0B43C" },
           { entity: sensor.pv2_power, label: PV2, color: "#36C98D" } ] }
       - { type: camera, entity: camera.front, title: Front }
+      # toggle/button panels also work as dashboard tiles (tap opens the player)
+      - type: toggle
+        title: Lights
+        items:
+          - { entity: light.living,  title: Living,  icon: "mdi:lightbulb-outline", icon_on: "mdi:lightbulb-on" }
+          - { entity: light.kitchen, title: Kitchen, icon: "mdi:ceiling-light" }

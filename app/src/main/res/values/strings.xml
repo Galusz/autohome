@@ -1,3 +1,38 @@
 <resources>
     <string name="app_name">AutoHome</string>
+
+    <!-- action button labels (tooltips on Android Auto) -->
+    <string name="act_turn_on">Turn on</string>
+    <string name="act_turn_off">Turn off</string>
+    <string name="act_set">Set</string>
+    <string name="act_save">Save</string>
+    <string name="act_heat">Heat</string>
+    <string name="act_cool">Cool</string>
+    <string name="act_off">Off</string>
+    <string name="act_push">Press</string>
+    <string name="act_dimmer">Dimmer</string>
+    <string name="act_brighter">Brighter</string>
+
+    <!-- now-playing texts -->
+    <string name="state_on">ON</string>
+    <string name="state_off">OFF</string>
+    <string name="brightness">BRIGHTNESS</string>
+    <string name="editing">EDITING</string>
+    <string name="number_hint">Arrows +/-, OK saves</string>
+    <string name="set_hint">SET</string>
+    <string name="pushed">PUSHED</string>
+
+    <!-- climate hvac modes -->
+    <string name="mode_heat">HEATING</string>
+    <string name="mode_cool">COOLING</string>
+    <string name="mode_off">OFF</string>
+    <string name="mode_auto">AUTO</string>
+    <string name="mode_dry">DRYING</string>
+    <string name="mode_fan">FAN</string>
+
+    <!-- misc -->
+    <string name="devices">devices</string>
+    <string name="entities">Entities</string>
+    <string name="panel_toggles">Switches</string>
+    <string name="panel_buttons">Buttons</string>
 </resources>

@@ -1,0 +1,32 @@
+<resources>
+    <string name="act_turn_on">Włącz</string>
+    <string name="act_turn_off">Wyłącz</string>
+    <string name="act_set">Ustaw</string>
+    <string name="act_save">Zapisz</string>
+    <string name="act_heat">Grzanie</string>
+    <string name="act_cool">Chłodzenie</string>
+    <string name="act_off">Wyłącz</string>
+    <string name="act_push">Naciśnij</string>
+    <string name="act_dimmer">Ciemniej</string>
+    <string name="act_brighter">Jaśniej</string>
+
+    <string name="state_on">WŁĄCZONE</string>
+    <string name="state_off">WYŁĄCZONE</string>
+    <string name="brightness">JASNOŚĆ</string>
+    <string name="editing">EDYCJA</string>
+    <string name="number_hint">Strzałki +-, OK zapisuje</string>
+    <string name="set_hint">USTAW</string>
+    <string name="pushed">NACIŚNIĘTO</string>
+
+    <string name="mode_heat">GRZANIE</string>
+    <string name="mode_cool">CHŁODZENIE</string>
+    <string name="mode_off">WYŁĄCZONA</string>
+    <string name="mode_auto">AUTO</string>
+    <string name="mode_dry">OSUSZANIE</string>
+    <string name="mode_fan">WENTYLACJA</string>
+
+    <string name="devices">urządzeń</string>
+    <string name="entities">Encje</string>
+    <string name="panel_toggles">Przełączniki</string>
+    <string name="panel_buttons">Przyciski</string>
+</resources>
